@@ -1,83 +1,59 @@
 'use client';
+import { useState,useEffect } from 'react';
+import { useAccount, useReadContract, useWriteContract,useWaitForTransactionReceipt } from 'wagmi';
+import {Loader2,DeleteIcon} from 'lucide-react'
+import {abi,contract_adress} from '@/abi/note'
+import { useQueryClient } from "@tanstack/react-query"
+import { Button } from '@/components/ui/button';
+// import { handleAddItem } from './action';
+const TODO_LIST_ABI =abi 
 
-import { useState } from 'react';
-import { useAccount, useReadContract, useWriteContract } from 'wagmi';
-import { parseAbi } from 'viem';
-
-const TODO_LIST_ABI = [
-	{
-		"inputs": [
-			{
-				"internalType": "string",
-				"name": "newItem",
-				"type": "string"
-			}
-		],
-		"name": "addTodoItem",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "indexToDelete",
-				"type": "uint256"
-			}
-		],
-		"name": "deleteTodoItem",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "getAllTodoItems",
-		"outputs": [
-			{
-				"internalType": "string[]",
-				"name": "",
-				"type": "string[]"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	}
-]
-
-const TODO_LIST_CONTRACT_ADDRESS = '0x37E71aa5F3E7A1C635870908EB0afc238BE68A31'; // Replace with your contract address
+const TODO_LIST_CONTRACT_ADDRESS = contract_adress// Replace with your contract address
 
 export default function TodoListApp() {
   const { isConnected } = useAccount();
   const [newItem, setNewItem] = useState('');
+  const queryClient = useQueryClient()
+  
 
   // Read all todo items
-  const {
-    data: todoItems = [],
-    refetch: refetchTodos,
-    isLoading,
-  } = useReadContract({
+  const { data: todoItems = [], refetch: refetchTodos, isLoading} = useReadContract({
     abi: TODO_LIST_ABI,
     address: TODO_LIST_CONTRACT_ADDRESS,
     functionName: 'getAllTodoItems',
+    query: {
+      select: (data: unknown) => data as string[],
+    }
   });
-
+  
   // Write operations
-  const { writeContractAsync } = useWriteContract();
+  const { writeContract, isPending, data: hash } = useWriteContract()
 
-  const handleAddItem = async () => {
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+    hash,
+  })
+  useEffect(() => {
+    if (isSuccess) {
+      queryClient.invalidateQueries({
+        queryKey: ['readContract', { functionName: 'getAllTodoItems' }]
+      })
+    }
+  }, [isSuccess, queryClient])
+
+  const handleAddItem = async (e: { preventDefault: () => void; }) => {
+    e.preventDefault();
     if (!newItem.trim()) return;
     
     try {
-      await writeContractAsync({
+       writeContract({
         abi: TODO_LIST_ABI,
         address: TODO_LIST_CONTRACT_ADDRESS,
         functionName: 'addTodoItem',
         args: [newItem],
       });
+      // revalidatePath('/');
       setNewItem('');
-      await refetchTodos();
+        // Revalidate the page to fetch updated data
     } catch (error) {
       console.error('Error adding item:', error);
     }
@@ -85,7 +61,7 @@ export default function TodoListApp() {
 
   const handleDeleteItem = async (index: number) => {
     try {
-      await writeContractAsync({
+       writeContract({
         abi: TODO_LIST_ABI,
         address: TODO_LIST_CONTRACT_ADDRESS,
         functionName: 'deleteTodoItem',
@@ -109,24 +85,31 @@ export default function TodoListApp() {
         ) : (
           <>
             <div className="flex mb-4">
+            <form onSubmit={handleAddItem}>
               <input
                 type="text"
                 value={newItem}
                 onChange={(e) => setNewItem(e.target.value)}
                 placeholder="Add a new task"
                 className="flex-1 px-4 py-2 border rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                onKeyPress={(e) => e.key === 'Enter' && handleAddItem()}
+                
               />
-              <button
-                onClick={handleAddItem}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-r-lg transition duration-200"
-              >
-                Add
-              </button>
+              <Button type="submit" className="ml-2" disabled={isPending || isConfirming}>
+                  {isPending || isConfirming ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    "Add"
+                  )}
+                </Button>
+              </form>
             </div>
 
             {isLoading ? (
               <div className="text-center py-4">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 <p className="text-gray-600">Loading todos...</p>
               </div>
             ) : (
@@ -141,7 +124,7 @@ export default function TodoListApp() {
                       onClick={() => handleDeleteItem(index)}
                       className="text-red-500 hover:text-red-700 transition duration-200"
                     >
-                      Delete
+                      <DeleteIcon className="mr-2 h-4 w-4" />
                     </button>
                   </li>
                 ))}

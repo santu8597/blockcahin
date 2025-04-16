@@ -5,7 +5,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/utils/mode-toggle"
-import { ChevronDown, Droplet, Menu, X } from "lucide-react"
+import { ChevronDown, Droplet, Menu, X,Blocks } from "lucide-react"
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -26,62 +26,22 @@ export function Navbar() {
 
           {/* Logo - Always visible */}
           <Link href="/" className="flex items-center space-x-2 transition-opacity hover:opacity-80">
-            <Droplet className="h-6 w-6 text-primary" />
-            <span className="font-rubik text-xl font-bold">Crimson</span>
+            <Blocks className="h-6 w-6 text-primary" />
+            <span className="font-rubik text-xl font-bold">Blockchain</span>
           </Link>
         </div>
 
         {/* Desktop Navigation */}
         <nav className="hidden flex-1 items-center space-x-6 text-sm font-medium md:flex md:ml-4">
-          <Link href="/camps" className="transition-colors hover:text-primary duration-200">
-            Blood Camps
+          <Link href="/" className="transition-colors hover:text-primary duration-200">
+            Note-app
           </Link>
 
-          {/* Dashboard Dropdown */}
-          <div className="relative group">
-            <button className="flex items-center space-x-1 transition-colors hover:text-primary duration-200">
-              <span>Dashboard</span>
-              <ChevronDown className="h-4 w-4 transition-transform group-hover:rotate-180" />
-            </button>
-            <div className="absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-background border border-border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-left">
-              <div className="py-1 rounded-md bg-popover">
-                <Link href="/dashboard" className="block px-4 py-2 text-sm hover:bg-muted hover:text-primary">
-                  User Dashboard
-                </Link>
-                <Link href="/hospital-dashboard" className="block px-4 py-2 text-sm hover:bg-muted hover:text-primary">
-                  Hospital Dashboard
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          {/* Organ Dropdown */}
-          <div className="relative group">
-            <button className="flex items-center space-x-1 transition-colors hover:text-primary duration-200">
-              <span>Organ</span>
-              <ChevronDown className="h-4 w-4 transition-transform group-hover:rotate-180" />
-            </button>
-            <div className="absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-background border border-border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-left">
-              <div className="py-1 rounded-md bg-popover">
-                <Link href="/organ" className="block px-4 py-2 text-sm hover:bg-muted hover:text-primary">
-                  Organ Requests
-                </Link>
-                <Link href="/org-donor" className="block px-4 py-2 text-sm hover:bg-muted hover:text-primary">
-                  Organ Donor
-                </Link>
-                <Link href="/org-hos-reg" className="block px-4 py-2 text-sm hover:bg-muted hover:text-primary">
-                  Organ Host Register
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          <Link href="/createcamp" className="transition-colors hover:text-primary duration-200">
-            Create Camp
+   <Link href="/nft" className="transition-colors hover:text-primary duration-200">
+            Show NFT
           </Link>
-
-          <Link href="/mint-nft" className="transition-colors hover:text-primary duration-200">
-            Mint NFT
+          <Link href="/chat" className="transition-colors hover:text-primary duration-200">
+            Chat
           </Link>
         </nav>
 
