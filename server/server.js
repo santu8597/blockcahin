@@ -10,7 +10,7 @@ const app = express()
 const httpServer = createServer(app)
 const io = new Server(httpServer, {
   cors: {
-    origin:["http://localhost:3000", "http://localhost:3001"],
+    origin: process.env.NODE_ENV === "production" ? false : ["http://localhost:3000", "http://localhost:3001"],
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -30,7 +30,7 @@ io.on("connection", (socket) => {
 
     // Create new room
     rooms.set(roomName, {
-      players: [{ id: socket.id, name: playerName, choice: null, ready: false }],
+      players: [{ id: socket.id, name: playerName, choice: null, ready: false, health: 100 }],
       gameState: "waiting", // waiting, playing, finished
       round: 1,
     })
@@ -68,7 +68,7 @@ io.on("connection", (socket) => {
     }
 
     // Add player to room
-    room.players.push({ id: socket.id, name: playerName, choice: null, ready: false })
+    room.players.push({ id: socket.id, name: playerName, choice: null, ready: false, health: 100 })
 
     // Join the socket to the room
     socket.join(roomName)
@@ -80,20 +80,20 @@ io.on("connection", (socket) => {
     // Notify all clients in the room
     io.to(roomName).emit("playerJoined", {
       players: room.players,
-      message: `${playerName} has joined the room`,
+      message: `${playerName} has joined the battle`,
     })
 
     // If we now have 2 players, the game can start
     if (room.players.length === 2) {
       room.gameState = "ready"
-      io.to(roomName).emit("gameReady", { message: "Game is ready to start" })
+      io.to(roomName).emit("gameReady", { message: "The battle is ready to begin!" })
     }
 
     console.log(`${playerName} joined room: ${roomName}`)
   })
 
-  // Player makes a choice (rock, paper, scissors)
-  socket.on("makeChoice", ({ choice }) => {
+  // Player casts a spell (fire, ice, wind)
+  socket.on("castSpell", ({ spell }) => {
     const roomName = socket.data.currentRoom
 
     if (!roomName || !rooms.has(roomName)) {
@@ -110,11 +110,11 @@ io.on("connection", (socket) => {
     }
 
     // Update player's choice
-    player.choice = choice
+    player.choice = spell
     player.ready = true
 
     // Notify the player their choice was recorded
-    socket.emit("choiceConfirmed", { choice })
+    socket.emit("spellCast", { spell })
 
     // Check if all players have made their choices
     const allPlayersReady = room.players.every((p) => p.ready)
@@ -123,36 +123,78 @@ io.on("connection", (socket) => {
       // Determine the winner
       const [player1, player2] = room.players
       let result
+      let damageDealt = false
 
+      // Spell battle logic
       if (player1.choice === player2.choice) {
-        result = { winner: null, message: "It's a tie!" }
+        result = { winner: null, message: "Spells collide! It's a draw!" }
       } else if (
-        (player1.choice === "rock" && player2.choice === "scissors") ||
-        (player1.choice === "paper" && player2.choice === "rock") ||
-        (player1.choice === "scissors" && player2.choice === "paper")
+        (player1.choice === "fire" && player2.choice === "ice") ||
+        (player1.choice === "ice" && player2.choice === "wind") ||
+        (player1.choice === "wind" && player2.choice === "fire")
       ) {
-        result = { winner: player1.id, message: `${player1.name} wins!` }
+        // Player 1 wins this round
+        player2.health -= 20
+        damageDealt = true
+        result = {
+          winner: player1.id,
+          message: `${player1.name}'s ${player1.choice} overpowers ${player2.name}'s ${player2.choice}!`,
+          damage: 20,
+          target: player2.id,
+        }
       } else {
-        result = { winner: player2.id, message: `${player2.name} wins!` }
+        // Player 2 wins this round
+        player1.health -= 20
+        damageDealt = true
+        result = {
+          winner: player2.id,
+          message: `${player2.name}'s ${player2.choice} overpowers ${player1.name}'s ${player1.choice}!`,
+          damage: 20,
+          target: player1.id,
+        }
+      }
+
+      // Check if game is over (someone reached 0 health)
+      let gameOver = false
+      let gameWinner = null
+
+      if (player1.health <= 0) {
+        gameOver = true
+        gameWinner = player2
+        result.gameOverMessage = `${player2.name} wins the battle! ${player1.name} has been defeated!`
+      } else if (player2.health <= 0) {
+        gameOver = true
+        gameWinner = player1
+        result.gameOverMessage = `${player1.name} wins the battle! ${player2.name} has been defeated!`
       }
 
       // Send results to all players in the room
       io.to(roomName).emit("roundResult", {
         result,
-        choices: {
+        spells: {
           [player1.id]: player1.choice,
           [player2.id]: player2.choice,
         },
+        health: {
+          [player1.id]: player1.health,
+          [player2.id]: player2.health,
+        },
         round: room.round,
+        gameOver,
+        gameWinner: gameWinner ? gameWinner.id : null,
       })
 
-      // Reset for next round
-      room.players.forEach((p) => {
-        p.choice = null
-        p.ready = false
-      })
-
-      room.round += 1
+      // Reset for next round or end game
+      if (gameOver) {
+        room.gameState = "finished"
+      } else {
+        // Reset for next round
+        room.players.forEach((p) => {
+          p.choice = null
+          p.ready = false
+        })
+        room.round += 1
+      }
     } else {
       // Notify the other player that this player is ready
       socket.to(roomName).emit("playerReady", {
@@ -183,12 +225,14 @@ io.on("connection", (socket) => {
       room.players.forEach((p) => {
         p.choice = null
         p.ready = false
+        p.health = 100 // Reset health for new game
       })
 
-      room.gameState = "playing"
+      room.gameState = "ready"
+      room.round = 1
 
       // Notify all players that a new game is starting
-      io.to(roomName).emit("newGame", { message: "New game starting" })
+      io.to(roomName).emit("newGame", { message: "A new battle begins!" })
     } else {
       // Notify the other player that this player is ready for a new game
       socket.to(roomName).emit("playerReadyForNewGame", {
@@ -231,7 +275,7 @@ io.on("connection", (socket) => {
       } else {
         // Notify remaining players
         io.to(roomName).emit("playerLeft", {
-          message: `${socket.data.playerName || "A player"} has left the room`,
+          message: `${socket.data.playerName || "A player"} has fled the battle!`,
           players: room.players,
         })
 
@@ -249,7 +293,7 @@ io.on("connection", (socket) => {
 })
 
 // Start the server
-const PORT = 3001
+const PORT = process.env.PORT || 3001
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })
